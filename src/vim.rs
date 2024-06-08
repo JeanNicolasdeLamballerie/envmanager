@@ -17,7 +17,7 @@ enum Editors {
     Neovide
 }
 
-fn lunar_envs() -> HashMap<String, String> {
+fn lunar_envs(cfg : Configurations) -> HashMap<String, String> {
     println!("Adding new  envs...");
     let mut map : HashMap<String, String> = HashMap::new();
     //TODO set a default case instead of unwrapping
@@ -33,8 +33,13 @@ fn lunar_envs() -> HashMap<String, String> {
     let config_from_xdg =  String::from(xdg_config_home)+"\\lvim";
     let cache_from_xdg =  String::from(xdg_cache_home)+"\\lvim";
     let base_from_runtime =  String::from(&runtime_from_xdg)+"\\lvim";
- let lvim_cfg = var("LUNARVIM_CONFIG_DIR").unwrap_or_else(|_| {config_from_xdg});
-    println!("{}", lvim_cfg);
+
+ let  dirname = match cfg {
+        Configurations::Transparent => "\\vim_configs\\lvim",
+        Configurations::Default => "\\vim_configs\\default"
+    };
+
+ let lvim_cfg = var("LUNARVIM_CONFIG_DIR").unwrap_or_else(|_| {config_from_xdg + dirname});
     map.insert("XDG_DATA_HOME".to_string(),  xdg_data_home.to_string());
     map.insert("XDG_CONFIG_HOME".to_string(),  xdg_config_home.to_string());
     map.insert("XDG_CACHE_HOME".to_string(),  xdg_cache_home.to_string());
@@ -58,17 +63,15 @@ impl Editors {
 
 /// Where to set the behavior for adding environment variables
 fn set_environment(args : crate::Args) -> HashMap<String, String> {
-    let mut map : HashMap<String, String> = HashMap::new();
     match Configurations::new(&args.config) {
         //  TODO Change to Configurations::Lunar(Transparent) ->  Give to lunar_envs(Transparent)
         Configurations::Transparent => {
-
-            map = lunar_envs();
-            ()          
+            lunar_envs(Configurations::Transparent)
         },
-        Configurations::Default =>(),
-    };
-    map
+        Configurations::Default => {
+             lunar_envs(Configurations::Default)
+        },
+    }
 
 }
 
