@@ -10,7 +10,7 @@ use vim::open;
 pub struct Args {
     /// Path to open with the editor
     #[arg()]
-    path: String,
+    path: Option<String>,
     #[arg(short, long, default_value_t = String::from("default"))]
     config: String,
 
@@ -20,12 +20,10 @@ pub struct Args {
 }
 fn main() {
     let args = Args::parse();
- let  handle = spawn(||  {
-
-    open(args);
+    let handle = spawn(|| {
+        open(args);
     });
-   if handle.join().is_err() {
+    if handle.join().is_err() {
         println!("An error occured recovering the thread...");
     };
-
 }
