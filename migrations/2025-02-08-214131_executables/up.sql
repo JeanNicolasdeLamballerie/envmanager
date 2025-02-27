@@ -1,5 +1,6 @@
-create table executables (
-  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  executable TEXT NOT NULL
+CREATE TABLE executables (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    executable TEXT NOT NULL
 )
+
