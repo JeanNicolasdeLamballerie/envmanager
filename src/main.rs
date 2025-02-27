@@ -1,3 +1,8 @@
+// vim: nomodeline
+pub mod database;
+pub mod models;
+pub mod schema;
+pub mod ui;
 pub mod vim;
 use std::thread::spawn;
 
@@ -17,9 +22,17 @@ pub struct Args {
     /// Editor to use
     #[arg(short, long, default_value_t = String::from("neovide"))]
     editor: String,
+
+    /// Creation GUI
+    #[arg(short, long, default_value_t = false)]
+    gui: bool,
 }
 fn main() {
     let args = Args::parse();
+    if args.gui {
+        ui::show().unwrap();
+        return;
+    }
     let handle = spawn(|| {
         open(args);
     });

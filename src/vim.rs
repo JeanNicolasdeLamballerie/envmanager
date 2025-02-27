@@ -50,7 +50,7 @@ fn neo_envs(cfg: NeoConfigurations) -> HashMap<String, String> {
         //FIXME Same for now
         NeoConfigurations::Default => "vim_configs\\lazyvim_starter",
     };
-
+    map.insert("TRANSPARENT_BACKGROUND".into(), "true".into());
     // let neovim_cfg = config_from_xdg + dirname;
     map.insert("XDG_CONFIG_HOME".into(), config_from_xdg);
     map.insert("NVIM_APPNAME".into(), neovim_cfg.into());
