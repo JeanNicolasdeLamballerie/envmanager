@@ -6,12 +6,13 @@ use egui::{Color32, ComboBox, Frame, Grid, Id, Layout, Modal, RichText, ScrollAr
 
 use crate::{
     database::{
-        delete_env, establish_connection, get_all, get_environments, get_envs_for_group,
-        get_executables, get_groups, update_env, update_group,
+        delete_env, delete_linked_groups_cfg, establish_connection, get_all, get_environments,
+        get_envs_for_group, get_executables, get_groups, update_configuration, update_env,
+        update_group,
     },
     models::{
-        hashset_comparison, Environment, Executable, GroupCfgLinkInsert, GroupEnvLinkInsert,
-        GroupedEnvironment, LinkedConfiguration, LinkedGroups,
+        hashset_comparison, DbObject as _, Environment, Executable, GroupCfgLinkInsert,
+        GroupEnvLinkInsert, GroupedEnvironment, LinkedConfiguration, LinkedGroups,
     },
 };
 
@@ -316,7 +317,42 @@ impl ConfigurationManager {
                             if previous.1 != self.fields.configuration_fields.configuration_name
                                 || self.editable.exec.id != previous.3
                             {
-                                // TODO update cfg
+                                update_configuration(
+                                    &mut self.conn,
+                                    &previous.0,
+                                    &self.fields.configuration_fields.configuration_name,
+                                    &self.editable.exec.id,
+                                )
+                                .unwrap();
+                            }
+                            let ids: Vec<GroupCfgLinkInsert> = self
+                                .editable
+                                .groups
+                                .checkboxes
+                                .iter()
+                                .filter_map(|x| {
+                                    if *x.1 {
+                                        Some(GroupCfgLinkInsert {
+                                            group_id: x.0,
+                                            config_id: &previous.0,
+                                        })
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect();
+                            let (added, removed) = hashset_comparison(&previous.2, &ids);
+                            dbg!(&added, &removed);
+                            if !removed.is_empty() {
+                                let remove: Vec<i32> = removed.iter().map(|x| x.id()).collect();
+                                delete_linked_groups_cfg(&mut self.conn, &remove, previous.0)
+                                    .unwrap();
+                                // delete_
+                            }
+                            if !added.is_empty() {
+                                let v: Vec<GroupCfgLinkInsert> =
+                                    added.into_iter().copied().collect();
+                                crate::database::new_linked_groups_cfg(&mut self.conn, &v).unwrap();
                             }
                         }
                         FieldState::Create => {
@@ -559,8 +595,14 @@ impl ConfigurationManager {
                 } else {
                     self.fields.configuration_fields.env.tip = false;
                     //FIXME REMOVE UNWRAP
-                    if let Edit((id, name, value)) = &self.modals.env_state.field {
-                        update_env(&mut self.conn, id, name, value).unwrap();
+                    if let Edit((id, _name, _value)) = &self.modals.env_state.field {
+                        update_env(
+                            &mut self.conn,
+                            id,
+                            &self.fields.configuration_fields.env.name,
+                            &self.fields.configuration_fields.env.value,
+                        )
+                        .unwrap();
                         self.reload();
                     } else {
                         let new_env = crate::database::new_env(
@@ -845,9 +887,21 @@ impl ConfigurationManager {
                                 name: group.group.name.clone(),
                             });
                             self.modals.show_env.envs = group.environments.clone();
-                            self.modals.show_env.show = !self.modals.show_env.show
+                            self.modals.show_env.show = true;
                         };
                         if ui.button("Edit").clicked() {
+                            let mut environments: HashMap<i32, bool> = self
+                                .environment_variables
+                                .clone()
+                                .into_iter()
+                                .map(|x| (x.0, false))
+                                .collect();
+                            for env in group.environments.iter() {
+                                environments.insert(env.id, true);
+                            }
+                            self.fields.configuration_fields.group.group_name =
+                                group.group.name.clone();
+                            self.editable.groups.env_checkboxes = environments;
                             self.modals.group_state.field = FieldState::Edit((
                                 group.group.id,
                                 group.group.name.clone(),

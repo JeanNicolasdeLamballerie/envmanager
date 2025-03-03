@@ -53,7 +53,22 @@ pub fn new_configuration(
         .get_result(conn)?;
     Ok(cfg)
 }
-
+pub fn update_configuration(
+    conn: &mut SqliteConnection,
+    id: &i32,
+    name: &str,
+    exec_id: &i32,
+) -> DbResult<Configuration> {
+    let group =
+        diesel::update(schema::configurations::table.filter(schema::configurations::id.eq(id)))
+            .set((
+                schema::configurations::name.eq(name),
+                schema::configurations::exec.eq(exec_id),
+            ))
+            .returning(Configuration::as_returning())
+            .get_result(conn)?;
+    Ok(group)
+}
 pub fn new_executable(conn: &mut SqliteConnection, name: &str, exe: &str) -> DbResult<Executable> {
     let exe = diesel::insert_into(schema::executables::table)
         .values((
@@ -142,7 +157,21 @@ pub fn new_linked_groups_cfg(
         .execute(conn)?;
     Ok(m_to_m)
 }
-
+pub fn delete_linked_groups_cfg(
+    conn: &mut SqliteConnection,
+    ids: &[i32],
+    config_id: i32,
+) -> DbResult<usize> {
+    let m_to_m = diesel::delete(
+        schema::m_to_m_group_configs::table.filter(
+            schema::m_to_m_group_configs::group_id
+                .eq_any(ids)
+                .and(schema::m_to_m_group_configs::config_id.eq(config_id)),
+        ),
+    )
+    .execute(conn)?;
+    Ok(m_to_m)
+}
 pub fn delete_linked_group_envs(
     conn: &mut SqliteConnection,
     ids: &[i32],
@@ -329,6 +358,110 @@ pub fn get_environments(conn: &mut SqliteConnection) -> DbResult<Vec<Environment
     use schema::environments::table;
     let res = table.load(conn)?;
     Ok(res)
+}
+pub fn get_single_executable(conn: &mut SqliteConnection, id: i32) -> DbResult<Executable> {
+    use schema::executables::table;
+    let res = table.filter(schema::executables::id.eq(id)).first(conn)?;
+    Ok(res)
+}
+pub fn get_config(
+    conn: &mut SqliteConnection,
+    id: Option<i32>,
+    name: Option<String>,
+) -> DbResult<Vec<LinkedConfiguration>> {
+    use schema::configurations::table;
+    if id.is_none() && name.is_none() {
+        panic!("You need to specify at least a config name or a config id.");
+    }
+    let mut query = table.into_boxed();
+    query = if let Some(id) = id {
+        query.filter(schema::configurations::id.eq(id))
+    } else {
+        let n = name.unwrap();
+        query.filter(schema::configurations::name.like(format!("%{}%", n)))
+    };
+    let res: Vec<(Configuration, Executable)> = query
+        .inner_join(schema::executables::table)
+        .select((Configuration::as_select(), Executable::as_select()))
+        .load(conn)?;
+    let cfgs: Vec<Configuration> = res.iter().map(|pair| pair.0.clone()).collect();
+    let linker: Vec<(GroupConfigLink, Option<GroupedEnvironment>)> =
+        GroupConfigLink::belonging_to(&cfgs)
+            .left_outer_join(schema::group_environments::table)
+            .select((
+                GroupConfigLink::as_select(),
+                schema::group_environments::all_columns.nullable(),
+            ))
+            .load(conn)?;
+    let configurations_with_groups: Vec<(Configuration, Vec<GroupedEnvironment>)> = linker
+        .grouped_by(&cfgs)
+        .into_iter()
+        .zip(cfgs)
+        .map(|(links, config)| {
+            (
+                config,
+                links
+                    .into_iter()
+                    .filter_map(|(_, group)| group)
+                    .collect::<Vec<GroupedEnvironment>>(),
+            )
+        })
+        .collect();
+    let mut mapped: HashMap<i32, GroupedEnvironment> = HashMap::new();
+    for (_, groups) in configurations_with_groups.iter() {
+        for group in groups {
+            mapped.entry(group.id).or_insert_with(|| group.clone());
+        }
+    }
+    let all_grouped: Vec<GroupedEnvironment> = mapped.into_values().collect();
+    let envs: Vec<(GroupEnvsLink, Option<Environment>)> = GroupEnvsLink::belonging_to(&all_grouped)
+        .left_outer_join(schema::environments::table)
+        .select((
+            GroupEnvsLink::as_select(),
+            schema::environments::all_columns.nullable(),
+        ))
+        .load(conn)?;
+
+    let all_grouped_environments: HashMap<i32, (GroupedEnvironment, Vec<Environment>)> = envs
+        .grouped_by(&all_grouped)
+        .into_iter()
+        .zip(all_grouped)
+        .map(|(links, grouped)| {
+            (
+                grouped.id,
+                (
+                    grouped,
+                    links
+                        .into_iter()
+                        .filter_map(|(_, env)| env)
+                        .collect::<Vec<Environment>>(),
+                ),
+            )
+        })
+        .collect();
+    let results: Vec<LinkedConfiguration> = configurations_with_groups
+        .iter()
+        .map(|(cfg, children)| {
+            let new_groups = children
+                .iter()
+                .map(|group| {
+                    let envs = match all_grouped_environments.get(&group.id) {
+                        Some(tuple) => tuple.1.clone(),
+                        None => vec![],
+                    };
+                    LinkedGroups {
+                        group: group.to_owned(),
+                        environments: envs,
+                    }
+                })
+                .collect();
+            LinkedConfiguration {
+                configuration: cfg.to_owned(),
+                groups: new_groups,
+            }
+        })
+        .collect();
+    Ok(results)
 }
 pub fn get_executables(conn: &mut SqliteConnection) -> DbResult<Vec<Executable>> {
     use schema::executables::table;

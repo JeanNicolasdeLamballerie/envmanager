@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::schema;
 use diesel::prelude::*;
@@ -17,17 +17,38 @@ pub struct LinkedConfiguration {
     pub configuration: Configuration,
     pub groups: Vec<LinkedGroups>,
 }
-
+impl LinkedConfiguration {
+    pub fn get_environments(&self) -> HashMap<String, String> {
+        let envs: HashMap<String, String> = self
+            .groups
+            .clone()
+            .into_iter()
+            .flat_map(|x| x.environments)
+            .map(|y| (y.name, y.value))
+            .collect();
+        envs
+    }
+}
 #[derive(PartialEq, Clone, Debug)]
 pub struct LinkedGroups {
     pub group: GroupedEnvironment,
     pub environments: Vec<Environment>,
 }
-#[derive(Insertable)]
+#[derive(Insertable, Clone, Copy, Debug)]
 #[diesel(table_name = schema::m_to_m_group_configs)]
 pub struct GroupCfgLinkInsert<'a> {
     pub group_id: &'a i32,
     pub config_id: &'a i32,
+}
+impl DbObject for GroupCfgLinkInsert<'_> {
+    fn id(&self) -> i32 {
+        *self.group_id
+    }
+}
+impl DbObject for LinkedGroups {
+    fn id(&self) -> i32 {
+        self.group.id
+    }
 }
 #[derive(Insertable, Clone, Copy)]
 #[diesel(table_name = schema::m_to_m_group_envs)]
@@ -52,7 +73,7 @@ pub struct GroupedEnvironment {
     pub name: String,
 }
 
-#[derive(Queryable, Identifiable, Selectable, PartialEq, Debug, Clone)]
+#[derive(Queryable, Identifiable, Selectable, Eq, Hash, PartialEq, Debug, Clone)]
 #[diesel(table_name = schema::environments)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Environment {

@@ -4,10 +4,10 @@ pub mod models;
 pub mod schema;
 pub mod ui;
 pub mod vim;
-use std::thread::spawn;
+// use std::thread::spawn;
 
 use clap::Parser;
-use vim::open;
+use vim::execute_configuration;
 
 /// Simple program to open an editor
 #[derive(Parser, Debug)]
@@ -16,8 +16,11 @@ pub struct Args {
     /// Path to open with the editor
     #[arg()]
     path: Option<String>,
-    #[arg(short, long, default_value_t = String::from("default"))]
-    config: String,
+    #[arg(short, long)]
+    config: Option<String>,
+
+    #[arg(long, short)]
+    id: Option<i32>,
 
     /// Editor to use
     #[arg(short, long, default_value_t = String::from("neovide"))]
@@ -33,10 +36,10 @@ fn main() {
         ui::show().unwrap();
         return;
     }
-    let handle = spawn(|| {
-        open(args);
-    });
-    if handle.join().is_err() {
-        println!("An error occured recovering the thread...");
-    };
+    // let handle = spawn(|| {
+    execute_configuration(args);
+    // });
+    // if handle.join().is_err() {
+    // println!("An error occured recovering the thread...");
+    // };
 }
