@@ -3,6 +3,7 @@ use diesel::prelude::*;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use directories::ProjectDirs;
 use std::collections::HashMap;
+use std::env::current_dir;
 use std::error::Error;
 use std::path::PathBuf;
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
@@ -364,14 +365,112 @@ pub fn get_single_executable(conn: &mut SqliteConnection, id: i32) -> DbResult<E
     let res = table.filter(schema::executables::id.eq(id)).first(conn)?;
     Ok(res)
 }
-pub fn get_config(
-    conn: &mut SqliteConnection,
+#[derive(Clone, Default, Debug)]
+struct ConfigurationFile {
     id: Option<i32>,
     name: Option<String>,
+}
+impl ConfigurationFile {
+    fn empty(&self) -> bool {
+        self.id.is_none() && self.name.is_none()
+    }
+}
+
+const PREFIX_LIST: [&str; 2] = ["id", "name"];
+
+fn analyze_file(string: &str) -> ConfigurationFile {
+    let mut file = ConfigurationFile::default();
+    for (line_index, line) in string.lines().enumerate() {
+        let index = line_index + 1;
+        for prefix in PREFIX_LIST {
+            if let Some(someid) = line.strip_prefix(prefix) {
+                match prefix {
+                    "name" => {
+                        file.name = Some(someid.trim().into());
+                    }
+                    "id" => match someid.trim().parse::<i32>() {
+                        Ok(id) => {
+                            if let Some(prev_id) = file.id {
+                                println!(
+                                    "WARNING : id {} will be overriden by id {} at line {}.",
+                                    prev_id, id, index
+                                );
+                            }
+                            file.id = Some(id);
+                        }
+                        Err(parse_error) => {
+                            println!(
+                                "Line {} was malformatted. The line couldn't be parsed: {}",
+                                index, parse_error
+                            );
+                        }
+                    },
+                    _ => unreachable!(
+                        "This statement should be unreachable. The prefix list is fixed."
+                    ),
+                }
+            };
+        }
+    }
+
+    file
+}
+pub fn get_config(
+    conn: &mut SqliteConnection,
+    mut id: Option<i32>,
+    mut name: Option<String>,
 ) -> DbResult<Vec<LinkedConfiguration>> {
     use schema::configurations::table;
     if id.is_none() && name.is_none() {
-        panic!("You need to specify at least a config name or a config id.");
+        let mut file_cfg = None;
+        let dir = current_dir().unwrap();
+        if let Ok(current_dir) = std::fs::read_dir(&dir) {
+            for entry in current_dir {
+                match entry {
+                    Ok(e) => {
+                        let filename = e.file_name();
+                        let path = e.path();
+                        if let Some(extension) = path.extension() {
+                            if extension == "envcfg" {
+                                match std::fs::read_to_string(path) {
+                                    Ok(string) => {
+                                        file_cfg = Some(analyze_file(&string));
+                                        break;
+                                    }
+
+                                    Err(_) => {
+                                        println!(
+                                            "Couldn't read the file {} despite the .envcfg \
+                                             extension.",
+                                            filename
+                                                .to_str()
+                                                .unwrap_or("[Invalid unicode file name...]"),
+                                        );
+                                    }
+                                };
+                            }
+                        };
+                    }
+                    Err(_) => continue,
+                }
+            }
+        }
+        if let Some(file_config) = file_cfg {
+            if file_config.empty() {
+                panic!(
+                    "You need to specify at least a config name or a config id in your file \
+                     config."
+                );
+            }
+            //
+            id = file_config.id;
+            name = file_config.name;
+        } else {
+            panic!(
+                "You need to specify at least a config name or a config id, or use a \
+                 [filename].envcfg to launch a program."
+            );
+        }
     }
     let mut query = table.into_boxed();
     query = if let Some(id) = id {

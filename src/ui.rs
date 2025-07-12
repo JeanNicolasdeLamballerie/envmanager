@@ -234,11 +234,33 @@ impl ConfigurationManager {
                 .selected_text(selected)
                 .show_ui(ui, |ui| {
                     for executable in self.executables.iter() {
-                        ui.selectable_value(
-                            &mut self.editable.exec.id,
-                            *executable.0,
-                            &executable.1.name,
-                        );
+                        ui.horizontal(|ui| {
+                            let exec = executable.1;
+                            if ui
+                                .add(
+                                    egui::Button::new("EDIT")
+                                        .corner_radius(4.)
+                                        .fill(Color32::BLACK),
+                                )
+                                .clicked()
+                            {
+                                self.fields.configuration_fields.executable.name =
+                                    exec.name.clone();
+                                self.fields.configuration_fields.executable.exec =
+                                    exec.executable.clone();
+                                self.modals.exec_state.field = FieldState::Edit((
+                                    exec.id,
+                                    exec.name.clone(),
+                                    exec.executable.clone(),
+                                ));
+                                self.modals.exec_state.open = true;
+                            };
+                            ui.selectable_value(
+                                &mut self.editable.exec.id,
+                                *executable.0,
+                                &executable.1.name,
+                            );
+                        });
                     }
                     ui.separator();
                     if ui.button("Add new executable").clicked() {
@@ -787,25 +809,7 @@ impl ConfigurationManager {
                                                 String::from("Executable Value : ")
                                                     + &exec.executable,
                                             );
-                                            if ui
-                                                .add(
-                                                    egui::Button::new("Modify Executable")
-                                                        .corner_radius(4.)
-                                                        .fill(Color32::BLACK),
-                                                )
-                                                .clicked()
-                                            {
-                                                self.fields.configuration_fields.executable.name =
-                                                    exec.name.clone();
-                                                self.fields.configuration_fields.executable.exec =
-                                                    exec.executable.clone();
-                                                self.modals.exec_state.field = FieldState::Edit((
-                                                    exec.id,
-                                                    exec.name.clone(),
-                                                    exec.executable.clone(),
-                                                ));
-                                                self.modals.exec_state.open = true;
-                                            };
+
                                             ui.separator();
                                             if ui
                                                 .add(
@@ -835,6 +839,33 @@ impl ConfigurationManager {
                                                     cfg.groups.clone(),
                                                     cfg.configuration.exec,
                                                 ));
+                                                self.modals.main_state.open = true;
+                                            };
+                                            ui.separator();
+                                            if ui
+                                                .add(
+                                                    egui::Button::new(
+                                                        RichText::new("Use as Base"), // .color(Color32),
+                                                    )
+                                                    .corner_radius(3.)
+                                                    .fill(Color32::from_rgb(15, 15, 30)),
+                                                )
+                                                .clicked()
+                                            {
+                                                //ERROR HERE
+                                                self.fields
+                                                    .configuration_fields
+                                                    .configuration_name =
+                                                    cfg.configuration.name.clone();
+                                                self.editable.exec.id = cfg.configuration.exec;
+                                                for group in cfg.groups.iter() {
+                                                    *self
+                                                        .editable
+                                                        .groups
+                                                        .checkboxes
+                                                        .get_mut(&group.group.id)
+                                                        .unwrap() = true;
+                                                }
                                                 self.modals.main_state.open = true;
                                             };
                                             Frame::NONE.inner_margin(5.).show(ui, |ui| {

@@ -13,4 +13,7 @@ directories = "6.0.0"
 eframe = "0.31.0"
 egui = "0.31.0"
 egui_extras = "0.31.0"
+fern = "0.7.1"
+humantime = "2.1.0"
+log = "0.4.26"
 rusqlite = { version = "0.33.0", features = ["bundled"] }

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env::var, process::Command};
+use std::{collections::HashMap, process::Command};
 
 use diesel::SqliteConnection;
 
@@ -6,40 +6,6 @@ use crate::{
     database::{establish_connection, get_config, get_single_executable},
     models::{Executable, LinkedConfiguration},
 };
-//
-// enum Configurations {
-//     Lunar(LunarConfigurations),
-//     Neovim(NeoConfigurations),
-// }
-//
-// impl Configurations {
-//     pub fn new(s: &str) -> Self {
-//         match s {
-//             "t" | "transparent" => Configurations::Lunar(LunarConfigurations::Transparent),
-//             "c" | "chill" => Configurations::Lunar(LunarConfigurations::Chill),
-//             "n" | "nvim" => Configurations::Neovim(NeoConfigurations::Default),
-//             "lazy" | "lazyvim" => Configurations::Neovim(NeoConfigurations::Lazy),
-//             _ => Configurations::Lunar(LunarConfigurations::Default),
-//         }
-//     }
-// }
-//
-// enum NeoConfigurations {
-//     Default,
-//     Lazy,
-// }
-// //
-// enum LunarConfigurations {
-//     Transparent,
-//     Chill,
-//     Default,
-// }
-//
-// enum Editors {
-//     VSCode,
-//     Neovim,
-//     Neovide,
-// }
 type Envs = HashMap<String, String>;
 fn get_components(conn: &mut SqliteConnection, cfg: &LinkedConfiguration) -> (Envs, Executable) {
     let envs = cfg.get_environments();
@@ -63,6 +29,10 @@ pub fn execute_configuration(args: crate::Args) {
         None => exe.executable,
     };
     drop(conn);
+    if args.clear {
+        command.env_remove("TERM");
+        // command.env_clear();
+    }
     command.arg(command_name).envs(envs);
     let mut output = command
         .arg(&start)
@@ -115,26 +85,6 @@ pub fn execute_configuration(args: crate::Args) {
 //     println!("Using lunarvim configuration : {}", dirname);
 //     map
 // }
-//
-// impl Editors {
-//     pub fn new(s: &str) -> (Self, String) {
-//         match s {
-//             "nvim" => (Editors::Neovim, String::from("nvim")),
-//             "lvim" => (Editors::Neovim, String::from("lvim")),
-//             "code" | "vscode" => (Editors::VSCode, String::from("code")),
-//             _ => (Editors::Neovide, String::from("neovide")),
-//         }
-//     }
-// }
-//
-/// Where to set the behavior for adding environment variables
-// fn set_environment(args: crate::Args) -> HashMap<String, String> {
-//     match Configurations::new(&args.config) {
-//         Configurations::Lunar(cfg) => lunar_envs(cfg),
-//         Configurations::Neovim(cfg) => neo_envs(cfg),
-//     }
-// }
-//
 fn target_command() -> (Command, bool) {
     let mut is_win = false;
     let output = if cfg!(target_os = "windows") {
@@ -145,20 +95,3 @@ fn target_command() -> (Command, bool) {
     };
     (output, is_win)
 }
-// pub fn open(args: crate::Args) {
-//     let (mut command, is_win) = target_command();
-//     let command_name = if is_win { "/C" } else { "-c" };
-//     let (_, cmd) = Editors::new(&args.editor);
-//     let path = args.path.clone();
-//     let envs = set_environment(args);
-//     let start = match path {
-//         Some(path) => cmd + " " + &path,
-//         None => cmd,
-//     };
-//     command.arg(command_name).envs(envs);
-//     let mut output = command
-//         .arg(&start)
-//         .spawn()
-//         .expect("failed to execute process");
-//     output.wait().expect("Error waiting for command ");
-// }

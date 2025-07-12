@@ -1,5 +1,6 @@
 // vim: nomodeline
 pub mod database;
+pub mod logger;
 pub mod models;
 pub mod schema;
 pub mod ui;
@@ -25,7 +26,9 @@ pub struct Args {
     /// Editor to use
     #[arg(short, long, default_value_t = String::from("neovide"))]
     editor: String,
-
+    /// force clear env.
+    #[arg(long, default_value_t = false)]
+    clear: bool,
     /// Creation GUI
     #[arg(short, long, default_value_t = false)]
     gui: bool,
