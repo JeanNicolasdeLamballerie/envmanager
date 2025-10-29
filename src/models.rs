@@ -56,13 +56,14 @@ pub struct GroupEnvLinkInsert<'a> {
     pub group_id: &'a i32,
     pub env_id: &'a i32,
 }
-#[derive(Queryable, Identifiable, Selectable, PartialEq, Clone)]
+#[derive(Queryable, Identifiable, Selectable, PartialEq, Clone, Debug)]
 #[diesel(table_name = schema::executables)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Executable {
     pub id: i32,
     pub name: String,
     pub executable: String,
+    pub mode: String,
 }
 
 #[derive(Queryable, Identifiable, Selectable, PartialEq, Clone, Debug)]

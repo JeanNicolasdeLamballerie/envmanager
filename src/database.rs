@@ -121,11 +121,13 @@ pub fn update_exec(
     id: &i32,
     name: &str,
     exec: &str,
+    mode: &str,
 ) -> DbResult<Executable> {
     let exec = diesel::update(schema::executables::table.filter(schema::executables::id.eq(id)))
         .set((
             schema::executables::name.eq(name),
             schema::executables::executable.eq(exec),
+            schema::executables::mode.eq(mode),
         ))
         .returning(Executable::as_returning())
         .get_result(conn)?;

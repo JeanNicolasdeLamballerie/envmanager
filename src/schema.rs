@@ -21,6 +21,7 @@ diesel::table! {
         id -> Integer,
         name -> Text,
         executable -> Text,
+        mode -> Text,
     }
 }
 

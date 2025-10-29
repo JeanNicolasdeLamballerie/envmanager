@@ -51,6 +51,7 @@ struct GroupFields {
 struct ExecutableFields {
     name: String,
     exec: String,
+    mode: String, // TODO: selection from a list
     tip: bool,
 }
 #[derive(Default)]
@@ -98,7 +99,7 @@ struct ModalState<T> {
 #[derive(Default)]
 struct Modals {
     main_state: ModalState<(DbId, String, Vec<LinkedGroups>, DbId)>,
-    exec_state: ModalState<(DbId, String, String)>,
+    exec_state: ModalState<(DbId, String, String, String)>,
     group_state: ModalState<(DbId, String, Vec<i32>)>,
     env_state: ModalState<(DbId, String, String)>,
     show_env: ShowEnvModal,
@@ -173,6 +174,7 @@ impl ConfigurationManager {
         let envs: HashMap<i32, Environment> = envs.into_iter().map(|el| (el.id, el)).collect();
         let execs = get_executables(&mut conn).unwrap();
         let executables = execs.into_iter().map(|el| (el.id, el)).collect();
+        println!("{executables:?}");
         let mut editable = EditableConfiguration::default();
         let fields = EditableFields::default();
         let modals = Modals::default();
@@ -248,10 +250,13 @@ impl ConfigurationManager {
                                     exec.name.clone();
                                 self.fields.configuration_fields.executable.exec =
                                     exec.executable.clone();
+                                self.fields.configuration_fields.executable.mode =
+                                    exec.mode.clone();
                                 self.modals.exec_state.field = FieldState::Edit((
                                     exec.id,
                                     exec.name.clone(),
                                     exec.executable.clone(),
+                                    exec.mode.clone(),
                                 ));
                                 self.modals.exec_state.open = true;
                             };
@@ -427,6 +432,22 @@ impl ConfigurationManager {
             ui.text_edit_singleline(&mut self.fields.configuration_fields.executable.name);
             ui.label("Executable name :");
             ui.text_edit_singleline(&mut self.fields.configuration_fields.executable.exec);
+
+            ui.label("Executable mode :");
+            ComboBox::from_id_salt("EXECUTABLEMODECOMBOBOX")
+                .selected_text(&self.fields.configuration_fields.executable.mode)
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(
+                        &mut self.fields.configuration_fields.executable.mode,
+                        "wait".to_string(),
+                        "wait",
+                    );
+                    ui.selectable_value(
+                        &mut self.fields.configuration_fields.executable.mode,
+                        "detach".to_string(),
+                        "detach",
+                    );
+                });
             if self.fields.configuration_fields.executable.tip {
                 ui.separator();
                 ui.label(
@@ -447,11 +468,19 @@ impl ConfigurationManager {
                             let id = &edit.0;
                             let name: &str = &edit.1;
                             let exec: &str = &edit.2;
+                            let mode: &str = &edit.3;
                             if name != self.fields.configuration_fields.executable.name
                                 || exec != self.fields.configuration_fields.executable.exec
+                                || mode != self.fields.configuration_fields.executable.mode
                             {
-                                crate::database::update_exec(&mut self.conn, id, name, exec)
-                                    .unwrap();
+                                crate::database::update_exec(
+                                    &mut self.conn,
+                                    id,
+                                    &self.fields.configuration_fields.executable.name,
+                                    &self.fields.configuration_fields.executable.exec,
+                                    &self.fields.configuration_fields.executable.mode,
+                                )
+                                .unwrap();
                             }
                         }
                         FieldState::Create => {
@@ -810,6 +839,10 @@ impl ConfigurationManager {
                                                     + &exec.executable,
                                             );
 
+                                            ui.separator();
+                                            ui.label(
+                                                String::from("Executable Mode : ") + &exec.mode,
+                                            );
                                             ui.separator();
                                             if ui
                                                 .add(
